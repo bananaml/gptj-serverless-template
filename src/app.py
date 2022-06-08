@@ -1,9 +1,12 @@
 from sanic import Sanic, response
+from sanic.response import json as json_response
 from warmup import load_model
 from run import run_model
+from transformers import GPT2Tokenizer
 
 # do the warmup step globally, to have a reuseable model instance
 model = load_model()
+tokenizer = GPT2Tokenizer.from_pretrained("EleutherAI/gpt-j-6B")
 
 app = Sanic("my_app")
 
@@ -23,10 +26,12 @@ def inference(request):
     prompt = model_inputs.get('prompt', None)
     if prompt == None:
         return response.json({'message': "No prompt provided"})
-    
-    output = run_model(model, prompt)
 
-    return response.json(output) # Do not edit - returning a dictionary as JSON is a required interface
+    input_tokens = tokenizer.encode(input, return_tensors="pt").to("cuda:0")
+    output = run_model(model, input_tokens)
+    output_text = tokenizer.batch_decode(output, skip_special_tokens=True)[0]
+    response = {"output": output_text}
+    return json_response(response) # Do not edit - returning a dictionary as JSON is a required interface
 
 
 if __name__ == '__main__':
